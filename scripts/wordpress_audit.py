@@ -53,20 +53,23 @@ def main():
         tree = json.loads(raw_elementor) if isinstance(raw_elementor, str) else raw_elementor
         def walk(nodes):
             if isinstance(nodes, list):
-                for node in nodes:
-                    walk(node)
+                for item in nodes:
+                    walk(item)
             elif isinstance(nodes, dict):
                 if "elType" in nodes:
-                    settings = nodes.get("settings", {}) or {}
-                    image_keys = {k: v for k, v in settings.items()
-                                  if "gallery" in k.lower() or "image" in k.lower()
-                                  or k in ("ids", "wp_gallery")}
+                    settings = nodes.get("settings") or {}
+                    if not isinstance(settings, dict):
+                        settings = {}
+                    image_keys = {key: value for key, value in settings.items()
+                                  if "gallery" in key.lower() or "image" in key.lower()
+                                  or key in ("ids", "wp_gallery")}
+                    widget_type = nodes.get("widgetType")
                     elementor_widgets.append({
-                        "id": node.get("id"), "elType": node.get("elType"),
-                        "widgetType": node.get("widgetType"),
-                        "image_settings": image_keys if node.get("widgetType") in
+                        "id": nodes.get("id"), "elType": nodes.get("elType"),
+                        "widgetType": widget_type,
+                        "image_settings": image_keys if widget_type in
                           ("gallery", "image-gallery", "basic-gallery", "media-carousel", "image-carousel") else {},
-                        "setting_keys": list(settings.keys()) if node.get("widgetType") else []})
+                        "setting_keys": list(settings.keys()) if widget_type else []})
                 walk(nodes.get("elements", []))
         walk(tree)
     except (ValueError, TypeError):
