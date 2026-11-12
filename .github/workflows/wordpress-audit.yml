@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/wordpress-audit.yml'
+      - 'scripts/wordpress_audit.py'
 
 permissions:
   contents: read
