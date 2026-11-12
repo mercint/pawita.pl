@@ -62,7 +62,7 @@ jobs:
           existing=call(mu)
           if existing.returncode==0 and 'pawita-staffa-gallery.php' in existing.stdout.splitlines():
               sys.exit('STOP: Gallery plugin already exists. Refusing to overwrite.')
-          if existing.returncode not in (0,9,19,22):
+          if existing.returncode not in (0,9,19,22,78):
               sys.exit('ERROR: Cannot verify plugin folder safely. No changes made.')
           result=call(mu+'pawita-staffa-gallery.php',upload='deploy/pawita-staffa-gallery.php')
           if result.returncode!=0:
