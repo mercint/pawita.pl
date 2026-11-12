@@ -49,14 +49,15 @@ jobs:
           root=None
           for candidate in roots:
               result=call(candidate)
+              print('FTPS check %s: curl=%s, entries=%s' % (candidate or '[root]', result.returncode, len(result.stdout.splitlines()) if result.returncode == 0 else 0))
               if result.returncode!=0:
                   continue
-              names=set(result.stdout.splitlines())
+              names=set(x.rstrip('/').split('/')[-1] for x in result.stdout.splitlines())
               if {'wp-content','wp-includes'}.issubset(names):
                   root=candidate
                   break
           if root is None:
-              sys.exit('ERROR: Cannot locate WordPress root or FTPS data channel failed. No changes made.')
+              sys.exit('ERROR: No WordPress directory found; inspect curl exit codes above. No files changed.')
           print('SUCCESS: FTPS directory listing works, WordPress root found.')
           mu=root+'wp-content/mu-plugins/'
           existing=call(mu)
