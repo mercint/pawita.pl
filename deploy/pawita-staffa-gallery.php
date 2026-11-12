@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Pawita – przycisk galerii (Staffa)
  * Description: Dodaje przycisk GALERIA pod opisem inwestycji i przewija do galerii na tej samej stronie.
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 if (!defined('ABSPATH')) { exit; }
 add_action('wp_footer', function () {
@@ -61,6 +61,29 @@ add_action('wp_footer', function () {
       a.textContent='GALERIA';
       wrap.appendChild(a);
       last.insertAdjacentElement('afterend',wrap);
+
+      // Center across the description and visualization columns.
+      function centerAcrossSection() {
+        wrap.style.transform = '';
+        if (window.innerWidth < 768) return;
+        var images = Array.from(document.querySelectorAll('img')).filter(function(img) {
+          var src = img.currentSrc || img.src || '';
+          return /Wizualizacja_Staffa_Wejherowo_view[12]_small/i.test(src) &&
+            img.getBoundingClientRect().width > 0;
+        });
+        if (!images.length) return;
+        var textRect = last.getBoundingClientRect();
+        var rightEdge = Math.max.apply(null, images.map(function(img) {
+          return img.getBoundingClientRect().right;
+        }));
+        if (rightEdge <= textRect.right) return;
+        var sectionCenter = (textRect.left + rightEdge) / 2;
+        var textColumnCenter = (textRect.left + textRect.right) / 2;
+        wrap.style.transform = 'translateX(' + Math.round(sectionCenter - textColumnCenter) + 'px)';
+      }
+      centerAcrossSection();
+      window.addEventListener('resize', centerAcrossSection, { passive: true });
+      window.addEventListener('load', centerAcrossSection, { once: true });
     });
     </script>
     <?php
