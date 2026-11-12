@@ -16,66 +16,56 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Upload isolated WordPress MU plugin (FTPS only)
+      - name: Upload isolated WordPress MU plugin (FTPS with curl)
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
           python3 - <<'PY'
-          from ftplib import FTP_TLS, error_perm
-          from pathlib import Path
-          import os, sys, posixpath, time
+          import os, sys, subprocess, urllib.parse
           host=os.environ.get('FTP_HOST','').strip()
           user=os.environ.get('FTP_USER','')
           password=os.environ.get('FTP_PASSWORD','')
           if not (host and user and password):
-              sys.exit('Missing FTP secrets')
+              sys.exit('ERROR: Missing FTP secrets')
           host=host.removeprefix('ftps://').removeprefix('ftp://').split('/')[0]
-          port=21
-          if ':' in host:
-              host,p=host.rsplit(':',1)
-              port=int(p)
-          ftp=FTP_TLS(timeout=20)
-          try:
-              ftp.connect(host,port)
-              ftp.auth()
-              ftp.login(user,password)
-              ftp.prot_p()
-              home=ftp.pwd()
-              roots=['.','public_html','www','htdocs','httpdocs','domains/pawita.pl/public_html','pawita.pl','pawita.pl/public_html']
-              found=None
-              for path in roots:
-                  try:
-                      ftp.cwd(home)
-                      if path!='.': ftp.cwd(path)
-                      items=[posixpath.basename(p.rstrip('/')) for p in ftp.nlst()]
-                      if 'wp-content' in items and 'wp-includes' in items:
-                          found=ftp.pwd()
-                          break
-                  except (error_perm,OSError):
-                      continue
-              if found is None:
-                  sys.exit('WordPress root not found; no files changed. Check FTP start directory.')
-              ftp.cwd(found)
-              ftp.cwd('wp-content')
-              try: ftp.cwd('mu-plugins')
-              except error_perm:
-                  ftp.mkd('mu-plugins')
-                  ftp.cwd('mu-plugins')
-              filename='pawita-staffa-gallery.php'
-              try:
-                  current=ftp.nlst()
-                  if filename in [posixpath.basename(x.rstrip('/')) for x in current]:
-                      sys.exit('Existing MU plugin found; refusing to overwrite. No files changed.')
-              except error_perm:
-                  pass
-              tmp='.pawita-staffa-gallery-'+str(int(time.time()))+'.tmp'
-              with Path('deploy/pawita-staffa-gallery.php').open('rb') as f:
-                  ftp.storbinary('STOR '+tmp,f)
-              ftp.rename(tmp,filename)
-              print('SUCCESS: Staffa gallery button plugin uploaded to WordPress mu-plugins.')
-          finally:
-              try: ftp.quit()
-              except Exception: pass
+          if not host or any(c in host for c in '@?# '):
+              sys.exit('ERROR: Invalid FTP host')
+          base='ftp://'+host+'/'
+          def call(relative='', upload=None):
+              url=base+urllib.parse.quote(relative, safe='/')
+              cmd=['curl','--ssl-reqd','--ftp-pasv','--fail','--silent',
+                   '--connect-timeout','15','--max-time','45',
+                   '--user',user+':'+password]
+              if upload:
+                  cmd+=['--ftp-create-dirs','--upload-file',upload]
+              else:
+                  cmd+=['--list-only']
+              result=subprocess.run(cmd+[url],capture_output=True,text=True)
+              return result
+          roots=['','public_html/','www/','htdocs/','httpdocs/',
+                 'domains/pawita.pl/public_html/','pawita.pl/','pawita.pl/public_html/']
+          root=None
+          for candidate in roots:
+              result=call(candidate)
+              if result.returncode!=0:
+                  continue
+              names=set(result.stdout.splitlines())
+              if {'wp-content','wp-includes'}.issubset(names):
+                  root=candidate
+                  break
+          if root is None:
+              sys.exit('ERROR: Cannot locate WordPress root or FTPS data channel failed. No changes made.')
+          print('SUCCESS: FTPS directory listing works, WordPress root found.')
+          mu=root+'wp-content/mu-plugins/'
+          existing=call(mu)
+          if existing.returncode==0 and 'pawita-staffa-gallery.php' in existing.stdout.splitlines():
+              sys.exit('STOP: Gallery plugin already exists. Refusing to overwrite.')
+          if existing.returncode not in (0,9,19,22):
+              sys.exit('ERROR: Cannot verify plugin folder safely. No changes made.')
+          result=call(mu+'pawita-staffa-gallery.php',upload='deploy/pawita-staffa-gallery.php')
+          if result.returncode!=0:
+              sys.exit('ERROR: FTPS upload failed (curl code %s).' % result.returncode)
+          print('SUCCESS: Gallery button plugin uploaded to WordPress mu-plugins.')
           PY
