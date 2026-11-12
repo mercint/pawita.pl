@@ -1,0 +1,81 @@
+name: Deploy Staffa gallery button via FTPS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'deploy/pawita-staffa-gallery.php'
+      - '.github/workflows/deploy-staffa-gallery.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload isolated WordPress MU plugin (FTPS only)
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          from ftplib import FTP_TLS, error_perm
+          from pathlib import Path
+          import os, sys, posixpath, time
+          host=os.environ.get('FTP_HOST','').strip()
+          user=os.environ.get('FTP_USER','')
+          password=os.environ.get('FTP_PASSWORD','')
+          if not (host and user and password):
+              sys.exit('Missing FTP secrets')
+          host=host.removeprefix('ftps://').removeprefix('ftp://').split('/')[0]
+          port=21
+          if ':' in host:
+              host,p=host.rsplit(':',1)
+              port=int(p)
+          ftp=FTP_TLS(timeout=20)
+          try:
+              ftp.connect(host,port)
+              ftp.auth()
+              ftp.login(user,password)
+              ftp.prot_p()
+              home=ftp.pwd()
+              roots=['.','public_html','www','htdocs','httpdocs','domains/pawita.pl/public_html','pawita.pl','pawita.pl/public_html']
+              found=None
+              for path in roots:
+                  try:
+                      ftp.cwd(home)
+                      if path!='.': ftp.cwd(path)
+                      items=[posixpath.basename(p.rstrip('/')) for p in ftp.nlst()]
+                      if 'wp-content' in items and 'wp-includes' in items:
+                          found=ftp.pwd()
+                          break
+                  except (error_perm,OSError):
+                      continue
+              if found is None:
+                  sys.exit('WordPress root not found; no files changed. Check FTP start directory.')
+              ftp.cwd(found)
+              ftp.cwd('wp-content')
+              try: ftp.cwd('mu-plugins')
+              except error_perm:
+                  ftp.mkd('mu-plugins')
+                  ftp.cwd('mu-plugins')
+              filename='pawita-staffa-gallery.php'
+              try:
+                  current=ftp.nlst()
+                  if filename in [posixpath.basename(x.rstrip('/')) for x in current]:
+                      sys.exit('Existing MU plugin found; refusing to overwrite. No files changed.')
+              except error_perm:
+                  pass
+              tmp='.pawita-staffa-gallery-'+str(int(time.time()))+'.tmp'
+              with Path('deploy/pawita-staffa-gallery.php').open('rb') as f:
+                  ftp.storbinary('STOR '+tmp,f)
+              ftp.rename(tmp,filename)
+              print('SUCCESS: Staffa gallery button plugin uploaded to WordPress mu-plugins.')
+          finally:
+              try: ftp.quit()
+              except Exception: pass
+          PY
