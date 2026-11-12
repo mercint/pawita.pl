@@ -1,0 +1,30 @@
+name: WordPress – sprawdzenie polaczenia i zdjec
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wordpress-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Pobierz repozytorium
+        uses: actions/checkout@v4
+      - name: Skonfiguruj Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Odczytaj WordPress i multimedia (bez zmian)
+        env:
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          WP_USERNAME: ${{ vars.WP_USERNAME || 'admin' }}
+        run: python scripts/wordpress_audit.py
+      - name: Zapisz raport
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pawita-wordpress-audit
+          path: output/wordpress-audit.json
+          retention-days: 7
