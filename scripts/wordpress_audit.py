@@ -74,14 +74,21 @@ def main():
     result = {"checked_local_date": TODAY, "page_id": 1409, "page_status": page["status"],
               "media_checked": len(compact), "today_images": today,
               "recent_media": compact[:30],
-              "elementor_meta_visible": "_elementor_data" in page.get("meta", {}),\n              "elementor_data_type": type(raw_elementor).__name__,\n              "elementor_data_length": len(raw_elementor) if raw_elementor else 0,\n              "elementor_widgets": elementor_widgets}
+              "elementor_meta_visible": "_elementor_data" in page.get("meta", {}),
+              "elementor_data_type": type(raw_elementor).__name__,
+              "elementor_data_length": len(raw_elementor) if raw_elementor else 0,
+              "elementor_widgets": elementor_widgets}
     os.makedirs("output", exist_ok=True)
     with open("output/wordpress-audit.json", "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print("Sprawdzone media:", len(compact), "| nowe obrazy z dzisiaj:", len(today))
     for image in today:
         print("Obraz:", image["id"], "|", image["title"], "|", image["source_url"])
-    print("Dane galerii Elementor wystawione przez REST:", result["elementor_meta_visible"])\n    print("Wykryte elementy Elementor:", len(elementor_widgets))\n    for widget in elementor_widgets:\n        if widget["widgetType"]:\n            print("Elementor widget:", widget["id"], widget["widgetType"], "pola:", widget["setting_keys"])
+    print("Dane galerii Elementor wystawione przez REST:", result["elementor_meta_visible"])
+    print("Wykryte elementy Elementor:", len(elementor_widgets))
+    for widget in elementor_widgets:
+        if widget["widgetType"]:
+            print("Elementor widget:", widget["id"], widget["widgetType"], "pola:", widget["setting_keys"])
     print("Raport JSON zapisany jako artefakt wordpress-audit.")
 
 if __name__ == "__main__":
