@@ -47,17 +47,41 @@ def main():
         for m in items
     ]
     today = [m for m in compact if (m.get("date") or "").startswith(TODAY) and (m.get("mime_type") or "").startswith("image/")]
+    raw_elementor = page.get("meta", {}).get("_elementor_data")
+    elementor_widgets = []
+    try:
+        tree = json.loads(raw_elementor) if isinstance(raw_elementor, str) else raw_elementor
+        def walk(nodes):
+            if isinstance(nodes, list):
+                for node in nodes:
+                    walk(node)
+            elif isinstance(nodes, dict):
+                if "elType" in nodes:
+                    settings = nodes.get("settings", {}) or {}
+                    image_keys = {k: v for k, v in settings.items()
+                                  if "gallery" in k.lower() or "image" in k.lower()
+                                  or k in ("ids", "wp_gallery")}
+                    elementor_widgets.append({
+                        "id": node.get("id"), "elType": node.get("elType"),
+                        "widgetType": node.get("widgetType"),
+                        "image_settings": image_keys if node.get("widgetType") in
+                          ("gallery", "image-gallery", "basic-gallery", "media-carousel", "image-carousel") else {},
+                        "setting_keys": list(settings.keys()) if node.get("widgetType") else []})
+                walk(nodes.get("elements", []))
+        walk(tree)
+    except (ValueError, TypeError):
+        pass
     result = {"checked_local_date": TODAY, "page_id": 1409, "page_status": page["status"],
               "media_checked": len(compact), "today_images": today,
               "recent_media": compact[:30],
-              "elementor_meta_visible": "_elementor_data" in page.get("meta", {})}
+              "elementor_meta_visible": "_elementor_data" in page.get("meta", {}),\n              "elementor_data_type": type(raw_elementor).__name__,\n              "elementor_data_length": len(raw_elementor) if raw_elementor else 0,\n              "elementor_widgets": elementor_widgets}
     os.makedirs("output", exist_ok=True)
     with open("output/wordpress-audit.json", "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print("Sprawdzone media:", len(compact), "| nowe obrazy z dzisiaj:", len(today))
     for image in today:
         print("Obraz:", image["id"], "|", image["title"], "|", image["source_url"])
-    print("Dane galerii Elementor wystawione przez REST:", result["elementor_meta_visible"])
+    print("Dane galerii Elementor wystawione przez REST:", result["elementor_meta_visible"])\n    print("Wykryte elementy Elementor:", len(elementor_widgets))\n    for widget in elementor_widgets:\n        if widget["widgetType"]:\n            print("Elementor widget:", widget["id"], widget["widgetType"], "pola:", widget["setting_keys"])
     print("Raport JSON zapisany jako artefakt wordpress-audit.")
 
 if __name__ == "__main__":
