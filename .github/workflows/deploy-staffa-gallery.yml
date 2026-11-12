@@ -83,12 +83,21 @@ jobs:
           print('SUCCESS: FTPS directory listing works, WordPress root found.')
           mu=root+'wp-content/mu-plugins/'
           existing=call(mu)
-          if existing.returncode==0 and 'pawita-staffa-gallery.php' in existing.stdout.splitlines():
-              sys.exit('STOP: Gallery plugin already exists. Refusing to overwrite.')
           if existing.returncode not in (0,9,19,22,78):
               sys.exit('ERROR: Cannot verify plugin folder safely. No changes made.')
-          result=call(mu+'pawita-staffa-gallery.php',upload='deploy/pawita-staffa-gallery.php')
+          filename='pawita-staffa-gallery.php'
+          if existing.returncode==0 and filename in existing.stdout.splitlines():
+              # Backup the current working plugin as a GitHub Actions local file.
+              backup=subprocess.run(['curl','--ssl-reqd','--ftp-pasv','--fail','--silent',
+                  '--connect-timeout','15','--max-time','45',
+                  '--user',user+':'+password,
+                  '--output','/tmp/pawita-staffa-gallery-backup.php',
+                  base+urllib.parse.quote(mu+filename,safe='/')],capture_output=True)
+              if backup.returncode!=0:
+                  sys.exit('ERROR: Could not back up existing plugin; refusing to overwrite.')
+              print('SUCCESS: Existing plugin backed up temporarily on runner.')
+          result=call(mu+filename,upload='deploy/pawita-staffa-gallery.php')
           if result.returncode!=0:
               sys.exit('ERROR: FTPS upload failed (curl code %s).' % result.returncode)
-          print('SUCCESS: Gallery button plugin uploaded to WordPress mu-plugins.')
+          print('SUCCESS: Updated gallery button plugin uploaded to WordPress mu-plugins.')
           PY
