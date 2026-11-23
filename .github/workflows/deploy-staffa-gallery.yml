@@ -1,10 +1,11 @@
-name: Deploy Staffa gallery button via FTPS
+name: Deploy Staffa gallery buttons via FTPS
 
 on:
   workflow_dispatch:
   push:
     paths:
       - 'deploy/pawita-staffa-gallery.php'
+      - 'deploy/wizualizacje/**'
       - '.github/workflows/deploy-staffa-gallery.yml'
 
 permissions:
@@ -13,7 +14,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Upload isolated WordPress MU plugin (FTPS with curl)
@@ -85,6 +86,20 @@ jobs:
           existing=call(mu)
           if existing.returncode not in (0,9,19,22,78):
               sys.exit('ERROR: Cannot verify plugin folder safely. No changes made.')
+          # Upload building visualizations first, so the plugin only lists files that exist.
+          media_dir=root+'wp-content/uploads/pawita-wizualizacje/'
+          media_files=sorted(f for f in os.listdir('deploy/wizualizacje')
+                             if f.endswith(('.webp','.mp4')))
+          for name in media_files:
+              url=base+urllib.parse.quote(media_dir+name,safe='/')
+              up=subprocess.run(['curl','--ssl-reqd','--ftp-pasv','--fail','--silent',
+                  '--connect-timeout','15','--max-time','180','--ftp-create-dirs',
+                  '--user',user+':'+password,
+                  '--upload-file','deploy/wizualizacje/'+name,url],capture_output=True)
+              if up.returncode!=0:
+                  sys.exit('ERROR: Upload of %s failed (curl code %s). Plugin not changed.' % (name,up.returncode))
+              print('Uploaded visualization:',name,flush=True)
+          print('SUCCESS: %d building visualization files uploaded.' % len(media_files))
           filename='pawita-staffa-gallery.php'
           if existing.returncode==0 and filename in existing.stdout.splitlines():
               # Backup the current working plugin as a GitHub Actions local file.
@@ -99,5 +114,5 @@ jobs:
           result=call(mu+filename,upload='deploy/pawita-staffa-gallery.php')
           if result.returncode!=0:
               sys.exit('ERROR: FTPS upload failed (curl code %s).' % result.returncode)
-          print('SUCCESS: Updated gallery button plugin uploaded to WordPress mu-plugins.')
+          print('SUCCESS: Updated gallery buttons plugin uploaded to WordPress mu-plugins.')
           PY
