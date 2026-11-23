@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Pawita – przyciski galerii (Staffa)
  * Description: Dwa przyciski pod opisem inwestycji: WIZUALIZACJA WNĘTRZA (istniejąca galeria Elementor) i WIZUALIZACJA BUDYNKU (galeria zdjęć i film budynku z lightboxem).
- * Version: 2.0.0
+ * Version: 2.0.1
  */
 if (!defined('ABSPATH')) { exit; }
 
@@ -36,6 +36,8 @@ add_action('wp_footer', function () {
     <style id="pawita-staffa-gallery-css">
       .pawita-staffa-gallery-link-wrap {
         display:flex; flex-wrap:wrap; gap:14px; justify-content:center; margin:30px 0;
+        /* The wrap is shifted over the neighbouring image column; keep it on top so both buttons get the cursor. */
+        position:relative; z-index:20;
       }
       .pawita-staffa-gallery-link {
         display:inline-flex; align-items:center; justify-content:center;
